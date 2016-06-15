@@ -23,15 +23,30 @@ parameters{
 
   real mu_Span;
   real mu_Bottom;
-  real mu_log_Inflec;
   real<lower = 0> mu_Slope;
-  real<lower = 0> mu_Asym;
 
 
   vector[N_unkn] log_x_raw; // log of each unknown's initial concentration
   vector[N_unkn_grp - 1] log_theta;  // log of each unknown's predicted concentration
   real<lower = 0> sigma_x;
   real pred_std_raw;
+  cholesky_factor_corr[2] L;
+  vector<lower =  0>[2] L_sigma;
+  vector[2] alpha;
+  vector[2] mu;
+}
+transformed parameters{
+    real<lower = 0> mu_Asym;
+  real mu_log_Inflec;
+
+  {
+    vector[2] temp;
+
+    temp <- mu + diag_pre_multiply(L_sigma, L) * alpha;
+
+    mu_Asym <- temp[1];
+    mu_log_Inflec <- temp[2];
+  }
 }
 model{
   vector[N_unkn] unkn_cOD;
@@ -42,13 +57,17 @@ model{
   sigma ~ normal(0, 1);
   mu_Bottom ~ normal(0.05, 0.01);
   mu_Span ~ normal(3.5, 0.1);
-  mu_log_Inflec ~ uniform(-5, 10);
   mu_Slope ~ normal(1, 0.5);
-  mu_Asym ~ normal(1, 0.5);
+
+  alpha ~ normal(0, 1);
+  L ~ lkj_corr_cholesky(4);
+  L_sigma ~ normal(0, 1);
+  mu[1] ~ normal(1, 0.5);
+  mu[2] ~ normal(0, 1);
 
   //Multilevel unknown estimation
   log_theta ~ uniform(-10, 15);
-  log_x_raw ~ normal(0, 1);
+  log_x_raw ~ normal(1, 0.5);
   pred_std_raw ~ normal(0, 1);
 
   pred_std <- mu_Std + pred_std_raw * sigma_std;
