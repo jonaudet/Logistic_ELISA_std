@@ -51,6 +51,14 @@ mutate(unkn, Conc = 4500 * Dilution) %>%
   theme_bw() +
   facet_wrap(~Plate, ncol = 3)
 
+mutate(unkn, Conc = 4500 * Dilution) %>%
+  filter(Std = TRUE) %>%
+  ggplot(aes(x = Conc, y = OD, colour = Plate)) +
+  geom_point(alpha = 0.4) +
+  stat_summary(aes(fun.data = "mean"), geom = "line") +
+  scale_x_log10() +
+  theme_bw()
+
 
 initial <- function(N, N_plates, N_grp){
   inits <- list(pred_std_raw = rnorm(1, 0, 1),
