@@ -25,6 +25,7 @@ parameters{
   real mu_Bottom;
   real mu_log_Inflec;
   real<lower = 0> mu_Slope;
+  real<lower = 0> mu_Asym;
 
 
   vector[N_unkn] log_x_raw; // log of each unknown's initial concentration
@@ -43,6 +44,7 @@ model{
   mu_Span ~ normal(3.5, 0.1);
   mu_log_Inflec ~ uniform(-5, 10);
   mu_Slope ~ normal(1, 0.5);
+  mu_Asym ~ normal(1, 0.5);
 
   //Multilevel unknown estimation
   log_theta ~ uniform(-10, 15);
@@ -62,7 +64,7 @@ model{
   log_x <- (log_ser_dilutions + log_Undil) + (sigma_x * abs_log_ser_dilutions) .* log_x_raw;
 
   for(i in 1:N_unkn){
-    unkn_cOD[i] <- mu_Bottom + mu_Span * inv_logit((log_x[i] - mu_log_Inflec) * mu_Slope);
+    unkn_cOD[i] <- mu_Bottom + mu_Span * inv_logit((log_x[i] - mu_log_Inflec) * mu_Slope) ^ mu_Asym;
   }
 
   Unknown ~ normal(unkn_cOD, sigma);
