@@ -59,7 +59,6 @@ initial <- function(N, N_plates, N_grp){
                 sigma = abs(rnorm(1, 0, 1)),
                 mu_Bottom = abs(rnorm(1, 0.05, 0.02)),
                 mu_Span = rnorm(1, 3.5, 0.1),
-                mu_log_Inflec = rnorm(1, 0, 2),
                 mu_Slope = abs(rnorm(1, 1, 1)),
                 log_theta = runif(N_grp - 1, -5, 6),
                 sigma_x = rexp(1, 1),
@@ -71,7 +70,7 @@ initial <- function(N, N_plates, N_grp){
 
 inits <- lapply(1:4, function(x) initial(96, 1, max(unkn$uID)))
 
-res2 <- stan(file = "logistic_OD_4p_UnknOnly.stan",
+res2 <- stan(file = "logistic_OD_5p_UnknOnly.stan",
              data = list(N_unkn = nrow(unkn),
                          N_unkn_grp = max(unkn$uID),
                          uID = unkn$uID,
