@@ -35,7 +35,9 @@ HDI <- function(Values, Interval = 0.95){
 }
 
 unkn <- read_csv("Data.csv") %>%
-  mutate(uID = as.numeric(factor(Samp))) %>%
+  filter(Plate != "Plate 16") %>%
+  mutate(uID = as.numeric(factor(Samp)),
+         pID = as.numeric(factor(Plate))) %>%
   arrange(uID, Dilution) %>%
   mutate(Std = Samp == "std")
 
@@ -52,7 +54,7 @@ mutate(unkn, Conc = 4500 * Dilution) %>%
   facet_wrap(~Plate, ncol = 3)
 
 mutate(unkn, Conc = 4500 * Dilution) %>%
-  filter(Std = TRUE) %>%
+  filter(Std == TRUE) %>%
   ggplot(aes(x = Conc, y = OD, colour = Plate)) +
   geom_point(alpha = 0.4) +
   stat_summary(aes(fun.data = "mean"), geom = "line") +
@@ -75,7 +77,28 @@ initial <- function(N, N_plates, N_grp){
 
 # Run the model
 
-inits <- lapply(1:4, function(x) initial(648, 7, max(unkn$uID)))
+sep <- lapply(1:6, function(i){
+  df <- filter(unkn, pID == i)
+  inits <- lapply(1:4, function(x) initial(nrow(df), 1, max(df$uID)))
+  ser_dilutions <- df %>%
+    .$Dilution
+  res <- stan(file = "logistic_OD_4p_UnknOnly.stan",
+               data = list(N_unkn = nrow(df),
+                           N_unkn_grp = max(df$uID),
+                           uID = df$uID,
+                           Unknown = df$OD,
+                           ser_dilutions = ser_dilutions,
+                           mu_Std = 4500,
+                           sigma_std = 200),
+               init = inits, chains = 4,
+               iter = 8000, warmup = 4000, refresh = 200, control = list(adapt_delta = 0.90))
+  return(res)
+})
+
+ser_dilutions <- unkn %>%
+  .$Dilution
+
+inits <- lapply(1:4, function(x) initial(nrow(unkn), max(unkn$pID), max(unkn$uID)))
 
 res2 <- stan(file = "logistic_OD_4p_MultiPlate.stan",
              data = list(N_unkn = nrow(unkn),
@@ -85,7 +108,7 @@ res2 <- stan(file = "logistic_OD_4p_MultiPlate.stan",
                          ser_dils = ser_dilutions,
                          mu_Std = 4500,
                          sigma_std = 200,
-                         N_plates = 7,
+                         N_plates = max(unkn$pID),
                          pID = unkn$pID),
              init = inits, chains = 4,
              iter = 8000, warmup = 4000, refresh = 200, control = list(adapt_delta = 0.90))#, max_treedepth = 15))
