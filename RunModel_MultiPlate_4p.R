@@ -35,9 +35,7 @@ HDI <- function(Values, Interval = 0.95){
 }
 
 unkn <- read_csv("Data.csv") %>%
-  filter(pID == 3) %>%
-  mutate(uID = as.numeric(factor(Samp)),
-         pID = pID - 2) %>%
+  mutate(uID = as.numeric(factor(Samp))) %>%
   arrange(uID, Dilution) %>%
   mutate(Std = Samp == "std")
 
@@ -46,7 +44,7 @@ ser_dilutions <- unkn %>%
 
 # Plot of each plate's standard and corresponding unknowns
 mutate(unkn, Conc = 4500 * Dilution) %>%
-ggplot(aes(x = Conc, y = OD, colour = Std, group = uID)) +
+  ggplot(aes(x = Conc, y = OD, colour = Std, group = uID)) +
   geom_point(alpha = 0.4) +
   stat_summary(aes(fun.data = "mean"), geom = "line") +
   scale_x_log10() +
@@ -57,10 +55,10 @@ ggplot(aes(x = Conc, y = OD, colour = Std, group = uID)) +
 initial <- function(N, N_plates, N_grp){
   inits <- list(pred_std_raw = rnorm(1, 0, 1),
                 sigma = abs(rnorm(1, 0, 1)),
-                mu_Bottom = abs(rnorm(1, 0.05, 0.02)),
-                mu_Span = rnorm(1, 3.5, 0.1),
-                mu_log_Inflec = rnorm(1, 0, 2),
-                mu_Slope = abs(rnorm(1, 1, 1)),
+                mu_Bottom = abs(rnorm(N_plates, 0.05, 0.02)),
+                mu_Span = rnorm(N_plates, 3.5, 0.1),
+                mu_log_Inflec = rnorm(N_plates, 0, 2),
+                mu_Slope = abs(rnorm(N_plates, 1, 1)),
                 log_theta = runif(N_grp - 1, -5, 6),
                 sigma_x = rexp(1, 1),
                 log_x_raw = rnorm(N, 0, 1))
@@ -69,16 +67,18 @@ initial <- function(N, N_plates, N_grp){
 
 # Run the model
 
-inits <- lapply(1:4, function(x) initial(96, 1, max(unkn$uID)))
+inits <- lapply(1:4, function(x) initial(648, 7, max(unkn$uID)))
 
-res2 <- stan(file = "logistic_OD_4p_UnknOnly.stan",
+res2 <- stan(file = "logistic_OD_4p_MultiPlate.stan",
              data = list(N_unkn = nrow(unkn),
                          N_unkn_grp = max(unkn$uID),
                          uID = unkn$uID,
                          Unknown = unkn$OD,
                          ser_dils = ser_dilutions,
                          mu_Std = 4500,
-                         sigma_std = 200),
+                         sigma_std = 200,
+                         N_plates = 7,
+                         pID = unkn$pID),
              init = inits, chains = 4,
              iter = 8000, warmup = 4000, refresh = 200, control = list(adapt_delta = 0.90))#, max_treedepth = 15))
 
