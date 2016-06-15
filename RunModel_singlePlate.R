@@ -80,7 +80,7 @@ res2 <- stan(file = "logistic_OD_4p_UnknOnly.stan",
                          mu_Std = 4500,
                          sigma_std = 200),
              init = inits, chains = 4,
-             iter = 8000, warmup = 4000, refresh = 200, control = list(adapt_delta = 0.90))#, max_treedepth = 15))
+             iter = 16000, warmup = 8000, refresh = 200, control = list(adapt_delta = 0.90))#, max_treedepth = 15))
 
 stan_ess(res2)
 stan_ac(res2)
