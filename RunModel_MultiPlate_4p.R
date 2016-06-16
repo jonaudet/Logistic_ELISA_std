@@ -91,7 +91,7 @@ sep <- lapply(1:6, function(i){
                            mu_Std = 4500,
                            sigma_std = 200),
                init = inits, chains = 4,
-               iter = 8000, warmup = 4000, refresh = 200, control = list(adapt_delta = 0.90))
+               iter = 12000, warmup = 8000, refresh = 200, control = list(adapt_delta = 0.95))
   return(res)
 })
 
