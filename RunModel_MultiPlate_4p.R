@@ -78,7 +78,11 @@ initial <- function(N, N_plates, N_grp){
 # Run the model
 
 sep <- lapply(1:6, function(i){
-  df <- filter(unkn, pID == i)
+  df <- filter(unkn, pID == i) %>%
+    mutate(uID = as.numeric(factor(Samp)),
+           pID = as.numeric(factor(Plate))) %>%
+    arrange(uID, Dilution) %>%
+    mutate(Std = Samp == "std")
   inits <- lapply(1:4, function(x) initial(nrow(df), 1, max(df$uID)))
   ser_dilutions <- df %>%
     .$Dilution
