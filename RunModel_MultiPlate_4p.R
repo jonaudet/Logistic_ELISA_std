@@ -100,6 +100,70 @@ sep <- lapply(1:6, function(i){
   return(res)
 })
 
+output <- unkn
+out_sep <- ldply(1:6, function(i){
+  print(i)
+  df <- filter(output, pID == i) %>%
+    mutate(uID = as.numeric(factor(Samp)),
+           pID = as.numeric(factor(Plate))) %>%
+    arrange(uID, Dilution) %>%
+    mutate(Std = Samp == "std")
+  inits <- lapply(1:4, function(x) initial(nrow(df), 1, max(df$uID)))
+  ser_dilutions <- df %>%
+    .$Dilution
+
+  cOD <- rstan::extract(sep[[i]], "x")$x
+  df$Median <- apply(cOD, 2, median)
+  errors <- ldply(apply(cOD, 2, HDI),
+                  function(x) return(x))
+  df$TopHDI <- errors$HigherHDI
+  df$LowHDI <- errors$LowerHDI
+  df$Conc <- df$Median
+  return(df)
+})
+
+ggplot(out_sep, aes(Conc, OD)) +
+  scale_x_log10(breaks = 10^seq(floor(log10(min(out_sep$Conc))), ceiling(log10(max(out_sep$Conc))), by = 1)) +
+  coord_cartesian(xlim = c(1e-4, 35), ylim = c(0, 4)) +
+  #geom_point(aes(colour = factor(uID))) +
+  geom_text(aes(label = Samp, colour = factor(uID))) +
+  geom_errorbarh(aes(xmin = LowHDI, xmax = TopHDI, colour = factor(uID))) +
+  scale_colour_discrete(guide = "none") +
+  facet_wrap(~Plate, ncol = 3)
+
+
+out_sep <- ldply(1:6, function(i){
+  print(i)
+  out <- unkn %>%
+  filter(Samp != "std", pID == i) %>%
+    mutate(uID = as.numeric(factor(Samp)),
+           pID = as.numeric(factor(Plate))) %>%
+    arrange(uID) %>%
+  group_by(uID) %>%
+  top_n(1, OD) %>%
+  ungroup %>%
+  separate(Samp, c("Group", "Samp"), sep = "-") %>%
+  separate(Samp, c("Unit", "Week"), sep = "_") %>%
+  mutate(Week = as.numeric(Week))
+
+  theta <- rstan::extract(sep[[i]], "theta")$theta
+  out$Conc <- apply(theta, 2, median)
+  errors <- ldply(apply(theta, 2, HDI),
+                  function(x) return(x))
+  out$TopHDI <- errors$HigherHDI
+  out$LowHDI <- errors$LowerHDI
+  return(out)
+})
+
+ggplot(out_sep, aes(Week, Conc, colour = Group, fill = Unit)) +
+  geom_pointrange(aes(ymin = LowHDI, ymax = TopHDI, shape = Unit)) +
+  geom_line() +
+  scale_y_log10(breaks = 10^seq(-12, 4)) +
+  annotation_logticks(sides = "l") +
+  coord_cartesian(ylim = c(0.1, 5e3)) +
+  xlim(0, NA) +
+  theme_bw()
+
 ser_dilutions <- unkn %>%
   .$Dilution
 
