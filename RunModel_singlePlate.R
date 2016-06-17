@@ -46,7 +46,7 @@ ser_dilutions <- unkn %>%
 
 # Plot of each plate's standard and corresponding unknowns
 mutate(unkn, Conc = 4500 * Dilution) %>%
-ggplot(aes(x = Conc, y = OD, colour = Std, group = uID)) +
+  ggplot(aes(x = Conc, y = OD, colour = Std, group = uID)) +
   geom_point(alpha = 0.4) +
   stat_summary(aes(fun.data = "mean"), geom = "line") +
   scale_x_log10() +
@@ -59,8 +59,8 @@ initial <- function(N, N_plates, N_grp){
                 sigma = abs(rnorm(1, 0, 1)),
                 mu_Bottom = abs(rnorm(1, 0.05, 0.02)),
                 mu_Span = rnorm(1, 3.5, 0.1),
-                mu_log_Inflec = rnorm(1, 0, 2),
-                mu_Slope = abs(rnorm(1, 1, 1)),
+                mu_log_Inflec = rnorm(1, 0, 1),
+                mu_Slope = abs(rnorm(1, 1, 0.5)),
                 log_theta = runif(N_grp - 1, -5, 6),
                 sigma_x = rexp(1, 1),
                 log_x_raw = rnorm(N, 0, 1))
@@ -69,9 +69,36 @@ initial <- function(N, N_plates, N_grp){
 
 # Run the model
 
-inits <- lapply(1:4, function(x) initial(96, 1, max(unkn$uID)))
+inits <- lapply(1:8, function(x) initial(96, 1, max(unkn$uID)))
 
-res2 <- stan(file = "logistic_OD_4p_UnknOnly.stan",
+chains <- 1:8
+xs <- exp(seq(-7, 4, length.out = 40))
+dat <- expand.grid(chains, xs, KEEP.OUT.ATTRS = F)
+inv_logit <- function(x) return(1 / (1 + exp(-x)))
+bottom <- sapply(1:8, function(i) inits[[i]]$mu_Bottom)
+span <- sapply(1:8, function(i) inits[[i]]$mu_Span)
+log_Inf <- sapply(1:8, function(i) inits[[i]]$mu_log_Inflec)
+slope <- sapply(1:8, function(i) inits[[i]]$mu_Slope)
+sigma <- sapply(1:8, function(i) inits[[i]]$sigma)
+sigma_x <- sapply(1:8, function(i) inits[[i]]$sigma_x)
+sigma_ratio <- sigma/sigma_x
+
+sigma_ratio
+
+dat <- mutate(dat,
+              OD = bottom[Var1] + span[Var1] * inv_logit((log(Var2) - log_Inf[Var1]) * slope[Var1]),
+              Var1 = factor(Var1)) %>%
+  select(Chain = Var1, Conc = Var2, OD)
+
+mutate(unkn, Conc = 4500 * Dilution) %>%
+  filter(Std == T) %>%
+  ggplot(aes(x = Conc, y = OD, colour = Std, group = uID)) +
+  geom_point(alpha = 0.4) +
+  geom_line(data = dat, aes(colour = Chain, group = Chain)) +
+  scale_x_log10() +
+  theme_bw()
+
+res3 <- stan(file = "logistic_OD_4p_UnknOnly.stan",
              data = list(N_unkn = nrow(unkn),
                          N_unkn_grp = max(unkn$uID),
                          uID = unkn$uID,
@@ -79,12 +106,14 @@ res2 <- stan(file = "logistic_OD_4p_UnknOnly.stan",
                          ser_dils = ser_dilutions,
                          mu_Std = 4500,
                          sigma_std = 200),
-             init = inits, chains = 4,
-             iter = 12000, warmup = 8000, refresh = 200, control = list(adapt_delta = 0.95))#, max_treedepth = 15))
+             init = inits, chains = 8,
+             iter = 14000, warmup = 10000, refresh = 200, control = list(adapt_delta = 0.95))#, max_treedepth = 15))
 
-stan_ess(res2)
-stan_ac(res2)
+stan_ess(res3)
+stan_ac(res3)
 stan_rhat(res2)
+
+traceplot(res3, pars = "mu_Span", inc_warmup = T) + facet_wrap(~chain, ncol = 1)
 
 # Look at the curves and the unknowns, the standards are shown in red all other colors are unknowns
 
