@@ -39,9 +39,10 @@ model{
   real pred_std;
 
   sigma ~ normal(0, 1);
+  sigma_x ~ normal(0, 1);
   mu_Bottom ~ normal(0.05, 0.01);
   mu_Span ~ normal(3.5, 0.1);
-  mu_log_Inflec ~ uniform(-5, 10);
+  mu_log_Inflec ~ normal(0, 2);
   mu_Slope ~ normal(1, 0.5);
 
   //Multilevel unknown estimation
