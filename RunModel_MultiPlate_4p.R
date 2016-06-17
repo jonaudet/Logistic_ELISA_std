@@ -116,7 +116,7 @@ res2 <- stan(file = "logistic_OD_4p_MultiPlate.stan",
                          N_plates = max(unkn$pID),
                          pID = unkn$pID),
              init = inits, chains = 4,
-             iter = 8000, warmup = 4000, refresh = 200, control = list(adapt_delta = 0.90))#, max_treedepth = 15))
+             iter = 14000, warmup = 10000, refresh = 200, control = list(adapt_delta = 0.95))#, max_treedepth = 15))
 
 stan_ess(res2)
 stan_ac(res2)
