@@ -35,7 +35,7 @@ HDI <- function(Values, Interval = 0.95){
 }
 
 unkn <- read_csv("Data.csv") %>%
-  filter(Plate != "Plate 16") %>%
+  filter(Plate != "Plate 12") %>%
   mutate(uID = as.numeric(factor(Samp)),
          pID = as.numeric(factor(Plate))) %>%
   arrange(uID, Dilution) %>%
@@ -67,8 +67,8 @@ initial <- function(N, N_plates, N_grp){
                 sigma = abs(rnorm(1, 0, 1)),
                 mu_Bottom = abs(rnorm(N_plates, 0.05, 0.02)),
                 mu_Span = rnorm(N_plates, 3.5, 0.1),
-                mu_log_Inflec = rnorm(N_plates, 0, 2),
-                mu_Slope = abs(rnorm(N_plates, 1, 1)),
+                mu_log_Inflec = rnorm(N_plates, 0, 1),
+                mu_Slope = abs(rnorm(N_plates, 1, 0.5)),
                 log_theta = runif(N_grp - 1, -5, 6),
                 sigma_x = rexp(1, 1),
                 log_x_raw = rnorm(N, 0, 1))
@@ -78,6 +78,7 @@ initial <- function(N, N_plates, N_grp){
 # Run the model
 
 sep <- lapply(1:6, function(i){
+  print(i)
   df <- filter(unkn, pID == i) %>%
     mutate(uID = as.numeric(factor(Samp)),
            pID = as.numeric(factor(Plate))) %>%
