@@ -34,6 +34,49 @@ HDI <- function(Values, Interval = 0.95){
   return(data.frame(LowerHDI = ordered[low], HigherHDI = ordered[low + intSize]))
 }
 
+LoadData <- function(Folder = "../Data/qELISA-2", DataFile = "Plates.xlsx", DilFile = "Dilutions.xlsx", LayoutFile = "Layout.xlsx"){
+  DataPath <- paste(Folder, DataFile, sep = "/")
+  DilPath <- paste(Folder, DilFile, sep = "/")
+  LayoutPath <- paste(Folder, LayoutFile, sep = "/")
+
+  Data <- data_frame()
+  for(i in excel_sheets(DataPath))
+    Data <- read_excel(DataPath, sheet = i) %>%
+    gather("Column", "OD", 2:length(.)) %>%
+    arrange(Row, Column) %>%
+    dplyr::mutate(Plate = i, Rep = rep(c("OD1", "OD2"), length(.$Column)/2)) %>%
+    unite(Well, Plate, Row, Column, sep = "_") %>%
+    bind_rows(Data, .)
+
+  Dilutions <- data_frame()
+  for(i in excel_sheets(DilPath))
+    Dilutions <- read_excel(DilPath, sheet = i) %>%
+    gather("Column", "Dilution", 2:length(.)) %>%
+    arrange(Row, Column) %>%
+    dplyr::mutate(Plate = i, Rep = rep(c("OD1", "OD2"), length(.$Column)/2)) %>%
+    unite(Well, Plate, Row, Column, sep = "_") %>%
+    filter(!is.na(Dilution)) %>%
+    bind_rows(Dilutions, .)
+
+  Samp <- data_frame()
+  for(i in excel_sheets(LayoutPath))
+    Samp <- read_excel(LayoutPath, sheet = i) %>%
+    gather("Column", "Samp", 2:length(.)) %>%
+    arrange(Row, Column) %>%
+    dplyr::mutate(Plate = i, Rep = rep(c("OD1", "OD2"), length(.$Column)/2)) %>%
+    unite(Well, Plate, Row, Column, sep = "_") %>%
+    filter(!is.na(Samp)) %>%
+    bind_rows(Samp, .)
+
+  Data <- Data %>%
+    left_join(Dilutions) %>%
+    left_join(Samp) %>%
+    separate(Well, c("Plate", "Well"), sep = "_", extra = "merge") %>%
+    dplyr::mutate(Well = gsub("_", "", Well))
+
+  return(Data)
+}
+
 unkn <- read_csv("Data.csv") %>%
   filter(Plate != "Plate 12") %>%
   mutate(uID = as.numeric(factor(Samp)),
