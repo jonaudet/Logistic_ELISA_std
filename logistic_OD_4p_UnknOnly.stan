@@ -46,7 +46,7 @@ model{
   mu_Slope ~ normal(1, 0.5);
 
   //Multilevel unknown estimation
-  log_theta ~ uniform(-10, 15);
+  log_theta ~ normal(5, 10);
   log_x_raw ~ normal(0, 1);
   pred_std_raw ~ normal(0, 1);
 
