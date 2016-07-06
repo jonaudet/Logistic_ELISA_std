@@ -128,6 +128,7 @@ sep <- lapply(1:18, function(i){
   inits <- lapply(1:4, function(x) initial(nrow(df), 1, max(df$uID)))
   ser_dilutions <- df %>%
     .$Dilution
+  timestamp()
   res <- stan(file = "logistic_OD_4p_UnknOnly.stan",
                data = list(N_unkn = nrow(df),
                            N_unkn_grp = max(df$uID),
@@ -138,6 +139,7 @@ sep <- lapply(1:18, function(i){
                            sigma_std = 200),
                init = inits, chains = 4,
                iter = 12000, warmup = 8000, refresh = 200, control = list(adapt_delta = 0.95))
+  timestamp()
   print(warnings())
   return(res)
 })
