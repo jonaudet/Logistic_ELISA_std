@@ -172,8 +172,8 @@ sep <- lapply(1:18, function(i){
                            uID = df$uID,
                            Unknown = df$OD,
                            ser_dilutions = ser_dilutions,
-                           mu_Std = 4500,
-                           sigma_std = 200),
+                           log_mu_Std = mu_std_log,
+                           log_sigma_std = sigma_std_log),
                init = inits, chains = 4,
                iter = 12000, warmup = 8000, refresh = 200, control = list(adapt_delta = 0.95))
   timestamp()
