@@ -4,8 +4,8 @@ int N_unkn_grp;       //Total number of unknown samples (should be N_unkn / 4)
 int uID[N_unkn];      //Sample number for each unknown value
 vector[N_unkn] Unknown; //Optical Density of each unknown
 vector[N_unkn] ser_dilutions; //The serial dilutions from the start dilution for each unknown;
-  real mu_Std;
-  real<lower = 0> sigma_std;
+  real log_mu_Std;
+  real<lower = 0> log_sigma_std;
 }
 transformed data{
   vector[N_unkn] log_ser_dilutions;
@@ -36,7 +36,7 @@ model{
   vector[N_unkn] unkn_cOD;
   vector[N_unkn] log_x;
   vector[N_unkn] log_Undil;
-  real pred_std;
+  real log_pred_std;
 
   sigma ~ normal(0, 1);
   sigma_x ~ normal(0, 1);
@@ -50,11 +50,11 @@ model{
   log_x_raw ~ normal(0, 1);
   pred_std_raw ~ normal(0, 1);
 
-  pred_std <- mu_Std + pred_std_raw * sigma_std;
+  log_pred_std <- log_mu_Std + pred_std_raw * log_sigma_std;
 
   for(i in 1:N_unkn){
     if(uID[i] == std_loc){
-      log_Undil[i] <- log(pred_std);
+      log_Undil[i] <- log_pred_std;
     } else {
       log_Undil[i] <- log_theta[uID[i]];
     }
@@ -74,13 +74,13 @@ generated quantities{
 
 {
   vector[N_unkn] log_Undil;
-  real pred_std;
+  real log_pred_std;
 
-  pred_std <- mu_Std + pred_std_raw * sigma_std;
+  log_pred_std <- log_mu_Std + pred_std_raw * log_sigma_std;
 
   for(i in 1:N_unkn){
     if(uID[i] == std_loc){
-      log_Undil[i] <- log(pred_std);
+      log_Undil[i] <- log_pred_std;
     } else {
       log_Undil[i] <- log_theta[uID[i]];
     }
