@@ -85,6 +85,43 @@ unkn <- LoadData(Folder = ".", DataFile = "Data.xlsx", DilFile = "Dilution.xlsx"
   arrange(uID, Dilution) %>%
   mutate(Std = Samp == "std")
 
+#define the standard
+
+stds <- unkn %>%
+  filter(Std == T) %>%
+  mutate(Dilution = 1 / Dilution)
+
+initial_std <- function(N_plates){
+  inits <- list(sigma = abs(rnorm(1, 0, 1)),
+                mu_Bottom = abs(rnorm(1, 0.05, 0.02)),
+                mu_Span = rnorm(1, 3.5, 0.1),
+                mu_log_Inflec = rnorm(1, 0, 1),
+                sigma_log_Inflec = abs(rnorm(1, 0, 1)),
+                log_Inflec_raw = rnorm(N_plates, 0, 1),
+                mu_Slope = -1 * abs(rnorm(1, 1, 0.5)))
+  return(inits)
+}
+
+inits <- lapply(1:4, function(x) initial_std(max(stds$pID)))
+
+res <- stan(file = "logistic_OD_4p_StdOnly.stan",
+            data = list(N_unkn = nrow(stds),
+                        N_unkn_grp = max(stds$pID),
+                        uID = stds$pID,
+                        OD = stds$OD,
+                        ser_dilutions = stds$Dilution),
+            init = inits, chains = 4,
+            iter = 12000, warmup = 8000, refresh = 200, control = list(adapt_delta = 0.95))
+
+print(res, pars = c("sigma", "mu_log_Inflec", "sigma_log_Inflec", "log_Inflec"))
+plot(res, pars = "mu_log_Inflec", plotfun = "dens")
+plot(res, pars = "sigma_log_Inflec", plotfun = "dens")
+plot(res, pars = "log_Inflec", plotfun = "dens")
+plot(res, pars = "log_Inflec")
+
+mu_std_log <- round(median(rstan::extract(res, "mu_log_Inflec")$mu_log_Inflec), 2)
+sigma_std_log <- round(median(rstan::extract(res, "sigma_log_Inflec")$sigma_log_Inflec), 2)
+
 # Plot of each plate's standard and corresponding unknowns
 mutate(unkn, Conc = 4500 * Dilution) %>%
   ggplot(aes(x = Conc, y = OD, colour = Std, group = uID)) +
