@@ -246,8 +246,8 @@ write_csv(out_sep, "results_final.csv")
 ggplot(out_sep, aes(Week, Conc, colour = Group, fill = Unit)) +
   geom_pointrange(aes(ymin = LowHDI, ymax = TopHDI, shape = Unit)) +
   geom_line() +
-  scale_y_log10(breaks = 10^seq(-12, 4)) +
+  scale_y_log10(breaks = 10^seq(-12, 5)) +
   annotation_logticks(sides = "l") +
-  coord_cartesian(ylim = c(0.01, 5e3)) +
+  coord_cartesian(ylim = c(0.01, 1e4)) +
   xlim(0, NA) +
   theme_bw()
