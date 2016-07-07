@@ -175,7 +175,7 @@ sep <- lapply(1:18, function(i){
                            log_mu_Std = mu_std_log,
                            log_sigma_std = sigma_std_log),
                init = inits, chains = 4,
-               iter = 12000, warmup = 8000, refresh = 200, control = list(adapt_delta = 0.95))
+               iter = 12000, warmup = 8000, refresh = 200, control = list(adapt_delta = 0.95, max_treedepth = 12))
   timestamp()
   print(warnings())
   return(res)
