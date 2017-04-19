@@ -42,7 +42,12 @@ unkn <- read_csv("Data.csv") %>%
   mutate(Std = Samp == "std")
 
 ser_dilutions <- unkn %>%
+  mutate(dID = as.numeric(factor(paste(Plate, Samp, Dilution, sep = "_")))) %>%
+  distinct(dID, Dilution) %>%
+  arrange(dID) %>%
   .$Dilution
+
+unkn <- mutate(unkn, dID = as.numeric(factor(paste(Plate, Samp, Dilution, sep = "_"))))
 
 # Plot of each plate's standard and corresponding unknowns
 mutate(unkn, Conc = 4500 * Dilution) %>%
@@ -62,66 +67,93 @@ mutate(unkn, Conc = 4500 * Dilution) %>%
   theme_bw()
 
 
-initial <- function(N, N_plates, N_grp){
-  inits <- list(pred_std_raw = rnorm(1, 0, 1),
-                sigma = abs(rnorm(1, 0, 1)),
-                mu_Bottom = abs(rnorm(N_plates, 0.05, 0.02)),
-                mu_Span = rnorm(N_plates, 3.5, 0.1),
-                mu_log_Inflec = rnorm(N_plates, 0, 1),
-                mu_Slope = abs(rnorm(N_plates, 1, 0.5)),
+initial <- function(N_dil, N_plates, N_grp){
+  inits <- list(std_raw = rnorm(1, 0, 1),
+                sigma_y = abs(rnorm(1, 0, 1)),
+                Bottom = abs(rnorm(N_plates, 0.04, 0.02)),
+                Span = rnorm(N_plates, 3.5, 0.1),
+                log_Inflec = rnorm(N_plates, 0, 1),
+                Slope = abs(rnorm(N_plates, 1, 0.5)),
                 log_theta = runif(N_grp - 1, -5, 6),
                 sigma_x = rexp(1, 1),
-                log_x_raw = rnorm(N, 0, 1))
+                sigma_OD = abs(rnorm(1, 0, 0.2)))
   return(inits)
 }
 
 # Run the model
 
-sep <- lapply(1:6, function(i){
+mod <- stan_model("logistic_OD_4p_UnknOnly.stan")
+
+sep <- lapply(1:18, function(i){
   print(i)
   df <- filter(unkn, pID == i) %>%
     mutate(uID = as.numeric(factor(Samp)),
-           pID = as.numeric(factor(Plate))) %>%
-    arrange(uID, Dilution) %>%
+           pID = as.numeric(factor(Plate)),
+           dID = as.numeric(factor(paste(Samp, format(Dilution, scientific = F), sep = "_")))) %>%
+    arrange(dID, uID, Dilution) %>%
     mutate(Std = Samp == "std")
-  inits <- lapply(1:4, function(x) initial(nrow(df), 1, max(df$uID)))
+  inits <- lapply(1:4, function(x) initial(max(df$dID), 1, max(df$uID)))
   ser_dilutions <- df %>%
+    mutate(dID = as.numeric(factor(paste(Samp, format(Dilution, scientific = F), sep = "_")))) %>%
+    distinct(dID, Dilution) %>%
+    arrange(dID) %>%
     .$Dilution
-  res <- stan(file = "logistic_OD_4p_UnknOnly.stan",
-               data = list(N_unkn = nrow(df),
-                           N_unkn_grp = max(df$uID),
-                           uID = df$uID,
-                           Unknown = df$OD,
-                           ser_dilutions = ser_dilutions,
+  s_df <- df %>%
+    distinct(dID, uID)
+  res <- sampling(mod,
+               data = list(N = nrow(df),
+                           N_grp = max(s_df$uID),
+                           N_grp_dil = max(df$dID),
+                           dil_ID = df$dID,
+                           uID = s_df$uID,
+                           meas_OD = df$OD,
+                           dilution = ser_dilutions,
                            mu_Std = 4500,
                            sigma_std = 200),
                init = inits, chains = 4,
-               iter = 12000, warmup = 8000, refresh = 200, control = list(adapt_delta = 0.95))
+               iter = 2000, warmup = 500, refresh = 50, control = list(adapt_delta = 0.99))
   return(res)
 })
 
-output <- unkn
-out_sep <- ldply(1:6, function(i){
-  print(i)
-  df <- filter(output, pID == i) %>%
-    mutate(uID = as.numeric(factor(Samp)),
-           pID = as.numeric(factor(Plate))) %>%
-    arrange(uID, Dilution) %>%
-    mutate(Std = Samp == "std")
-  inits <- lapply(1:4, function(x) initial(nrow(df), 1, max(df$uID)))
-  ser_dilutions <- df %>%
-    .$Dilution
 
-  cOD <- rstan::extract(sep[[i]], "x")$x
-  df$Median <- apply(cOD, 2, median)
-  errors <- ldply(apply(cOD, 2, HDI),
-                  function(x) return(x))
-  df$TopHDI <- errors$HigherHDI
-  df$LowHDI <- errors$LowerHDI
+check_divergent <- function(stan_res){
+  np <- nuts_params(stan_res)
+  divergences <- filter(np, Parameter == "divergent__", Iteration > 500)
+  number <- sum(divergences$Value)
+  return(number)
+}
+
+Divergences <- sapply(1:6, function(x) check_divergent(sep[[x]]))
+
+mutate(unkn, Conc = 4500 * Dilution,
+       Div = Divergences[pID] != 0) %>%
+  filter(Std == TRUE) %>%
+  ggplot(aes(x = Conc, y = OD, colour = Div, group = Plate)) +
+  geom_point(alpha = 0.4) +
+  stat_summary(aes(fun.data = "mean"), geom = "line") +
+  scale_x_log10() +
+  theme_bw()
+
+output <- unkn
+out_sep <- bind_rows(lapply(1:18, function(i){
+  cat(i)
+  df <- filter(unkn, pID == i) %>%
+    mutate(uID = as.numeric(factor(Samp)),
+           pID = as.numeric(factor(Plate)),
+           dID = as.numeric(factor(paste(Samp, format(Dilution, scientific = F), sep = "_")))) %>%
+    arrange(dID, uID, Dilution) %>%
+    mutate(Std = Samp == "std")
+
+  cOD <- exp(rstan::extract(sep[[i]], "log_x")$log_x)
+  df$Median <- rep(apply(cOD, 2, median), each = 2)
+  errors <- bind_rows(apply(cOD, 2, HDI))
+  df$TopHDI <- rep(errors$HigherHDI, each = 2)
+  df$LowHDI <- rep(errors$LowerHDI, each = 2)
   df$Conc <- df$Median
   return(df)
-})
+}))
 
+out_sep <- mutate(out_sep, uID = as.numeric(factor(Samp)))
 ggplot(out_sep, aes(Conc, OD)) +
   scale_x_log10(breaks = 10^seq(floor(log10(min(out_sep$Conc))), ceiling(log10(max(out_sep$Conc))), by = 1)) +
   coord_cartesian(xlim = c(1e-4, 35), ylim = c(0, 4)) +
@@ -132,55 +164,81 @@ ggplot(out_sep, aes(Conc, OD)) +
   facet_wrap(~Plate, ncol = 3)
 
 
-out_sep <- ldply(1:6, function(i){
+out_sep <- bind_rows(lapply(1:18, function(i){
   print(i)
   out <- unkn %>%
   filter(Samp != "std", pID == i) %>%
     mutate(uID = as.numeric(factor(Samp)),
            pID = as.numeric(factor(Plate))) %>%
     arrange(uID) %>%
-  group_by(uID) %>%
-  top_n(1, OD) %>%
-  ungroup %>%
+  distinct(uID, .keep_all = T) %>%
   separate(Samp, c("Group", "Samp"), sep = "-") %>%
   separate(Samp, c("Unit", "Week"), sep = "_") %>%
   mutate(Week = as.numeric(Week))
 
-  theta <- rstan::extract(sep[[i]], "theta")$theta
+  theta <- exp(rstan::extract(sep[[i]], "log_theta")$log_theta)
   out$Conc <- apply(theta, 2, median)
-  errors <- ldply(apply(theta, 2, HDI),
-                  function(x) return(x))
+  errors <- bind_rows(apply(theta, 2, HDI))
   out$TopHDI <- errors$HigherHDI
   out$LowHDI <- errors$LowerHDI
   return(out)
-})
+}))
 
+out_sep <- mutate(out_sep, pID = as.numeric(factor(Plate)))
 ggplot(out_sep, aes(Week, Conc, colour = Group, fill = Unit)) +
   geom_pointrange(aes(ymin = LowHDI, ymax = TopHDI, shape = Unit)) +
   geom_line() +
   scale_y_log10(breaks = 10^seq(-12, 4)) +
   annotation_logticks(sides = "l") +
-  coord_cartesian(ylim = c(0.1, 5e3)) +
+  coord_cartesian(ylim = c(0.1, 2e4)) +
   xlim(0, NA) +
+  #facet_wrap(~Group) +
   theme_bw()
 
-ser_dilutions <- unkn %>%
+for(i in 1:18){
+  if(Divergences[i]){
+    filter(out_sep, pID == i) %>%
+      print
+  }
+}
+
+ ser_dilutions <- unkn %>%
   .$Dilution
 
 inits <- lapply(1:4, function(x) initial(nrow(unkn), max(unkn$pID), max(unkn$uID)))
 
-res2 <- stan(file = "logistic_OD_4p_MultiPlate.stan",
-             data = list(N_unkn = nrow(unkn),
-                         N_unkn_grp = max(unkn$uID),
-                         uID = unkn$uID,
-                         Unknown = unkn$OD,
-                         ser_dils = ser_dilutions,
+unkn <- unkn %>%
+  mutate(uID = as.numeric(factor(Samp)),
+         pID = as.numeric(factor(Plate)),
+         dID = as.numeric(factor(paste(Plate, Samp, format(Dilution, scientific = F), sep = "_")))) %>%
+  arrange(dID, Dilution) %>%
+  mutate(Std = Samp == "std")
+
+ser_dilutions <- unkn %>%
+  mutate(dID = as.numeric(factor(paste(Plate, Samp, format(Dilution, scientific = F), sep = "_")))) %>%
+  distinct(dID, Dilution) %>%
+  arrange(dID) %>%
+  .$Dilution
+
+dil_unkn <- unkn %>%
+  distinct(uID, pID, dID, Dilution)
+
+mod <- stan_model("logistic_X_4p_Jplate.stan")
+
+res2 <- sampling(mod,
+             data = list(N = nrow(unkn),
+                         N_grp = max(unkn$uID),
+                         N_grp_dil = max(unkn$dID),
+                         uID = dil_unkn$uID,
+                         dil_ID = unkn$dID,
+                         meas_OD = unkn$OD,
+                         dilution = ser_dilutions,
                          mu_Std = 4500,
                          sigma_std = 200,
-                         N_plates = max(unkn$pID),
-                         pID = unkn$pID),
-             init = inits, chains = 4,
-             iter = 14000, warmup = 10000, refresh = 200, control = list(adapt_delta = 0.95))#, max_treedepth = 15))
+                         J = max(unkn$pID),
+                         pID = dil_unkn$pID),
+             init = inits, chains = 4,diagnostic_file = "dia",
+             iter = 2000, warmup = 500, refresh = 50, control = list(adapt_delta = 0.95))
 
 stan_ess(res2)
 stan_ac(res2)
@@ -190,12 +248,11 @@ stan_rhat(res2)
 
 output <- unkn
 
-cOD <- rstan::extract(res2, "x")$x
-output$Median <- apply(cOD, 2, median)
-errors <- ldply(apply(cOD, 2, HDI),
-                function(x) return(x))
-output$TopHDI <- errors$HigherHDI
-output$LowHDI <- errors$LowerHDI
+cOD <- exp(rstan::extract(res2, "log_x")$log_x)
+output$Median <- apply(cOD, 2, median)[output$dID]
+errors <- bind_rows(apply(cOD, 2, HDI))
+output$TopHDI <- errors$HigherHDI[output$dID]
+output$LowHDI <- errors$LowerHDI[output$dID]
 output$Conc <- output$Median
 
 ggplot(output, aes(Conc, OD)) +
@@ -219,18 +276,17 @@ out <- unkn %>%
   separate(Samp, c("Unit", "Day"), sep = "_") %>%
   mutate(Day = as.numeric(Day))
 
-theta <- rstan::extract(res2, "theta")$theta
-out$Conc <- apply(theta, 2, median)
-errors <- ldply(apply(theta, 2, HDI),
-                function(x) return(x))
-out$TopHDI <- errors$HigherHDI
-out$LowHDI <- errors$LowerHDI
+theta <- exp(rstan::extract(res2, "log_theta")$log_theta)
+out$Conc <- apply(theta, 2, median)[out$uID]
+errors <- bind_rows(apply(theta, 2, HDI))
+out$TopHDI <- errors$HigherHDI[out$uID]
+out$LowHDI <- errors$LowerHDI[out$uID]
 
 ggplot(out, aes(Day, Conc, colour = Group, fill = Unit)) +
   geom_pointrange(aes(ymin = LowHDI, ymax = TopHDI, shape = Unit)) +
   geom_line() +
   scale_y_log10(breaks = 10^seq(-12, 4)) +
   annotation_logticks(sides = "l") +
-  coord_cartesian(ylim = c(0.00001, 5e3)) +
+  coord_cartesian(ylim = c(0.0001, 5e3)) +
   xlim(0, NA) +
   theme_bw()
