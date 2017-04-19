@@ -59,7 +59,9 @@ model{
     }
   }
 
-  log_x ~ normal(log_conc, sigma_x);
+  log_conc ~ normal(log_x, sigma_x);
+
+  target += log(sigma_std) - log(sigma_std * std_raw + mu_std);
 
   for(i in 1:N)
     meas_OD[i] ~ normal(Bottom + Span * inv_logit((log_x[dil_ID[i]] - log_Inflec) * Slope), sigma_y);
