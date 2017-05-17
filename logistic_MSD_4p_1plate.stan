@@ -42,9 +42,9 @@ model{
 
   sigma_y ~ normal(0, 10);
   sigma_x ~ normal(0, 1);
-  Span ~ normal(1, 0.3);
-  Bottom ~ normal(250, 90);
-  log_Inflec ~ normal(10, 3);
+  Span ~ normal(1.6, 0.3);
+  Bottom ~ normal(5, 1);
+  log_Inflec ~ normal(2, 3);
   Slope ~ normal(1, 0.5);
   std_raw ~ normal(0, 1);
 
@@ -64,5 +64,5 @@ model{
   target += log(sigma_std) - log(sigma_std * std_raw + mu_Std);
 
   for(i in 1:N)
-    meas_Signal[i] ~ normal(Bottom + (Span * 1e7) * inv_logit((log_x[dil_ID[i]] - log_Inflec) * Slope), sigma_y);
+    meas_Signal[i] ~ normal(Bottom + (Span * 10) * inv_logit((log_x[dil_ID[i]] - log_Inflec) * Slope), sigma_y);
 }
