@@ -2,6 +2,7 @@ data{
   int N;      //Total number of wells measured
   int N_grp;  //Total number of independent samples (1 sample has multiple dilutions which have multiple replicates)
   int N_grp_dil;  //Total number of dilutions and groups (so that N_grp_dil X # of replicates == N)
+  int N_bot; //Number of values at Conc = 0
 
   int<lower = 1, upper = N_grp> uID[N_grp_dil]; //Sample ID for each dilution
   int<lower = 1, upper = N_grp_dil> dil_ID[N];  //Dilution ID for each well
@@ -11,6 +12,10 @@ data{
 
   real mu_Std;       //Concentration of the standard
   real<lower = 0> sigma_std;    //Uncertainty on the concentration of the standard
+
+  vector[N_bot] zeroes;
+
+  real inflec_mu;
 }
 transformed data{
   vector[N_grp_dil] log_dilution;
@@ -42,10 +47,10 @@ model{
 
   sigma_y ~ normal(0, 10);
   sigma_x ~ normal(0, 1);
-  Span ~ normal(1.6, 0.3);
+  Span ~ normal(16, 5);
   Bottom ~ normal(5, 1);
-  log_Inflec ~ normal(2, 3);
-  Slope ~ normal(1, 0.5);
+  log_Inflec ~ normal(inflec_mu, 1);
+  Slope ~ normal(1, 0.3);
   std_raw ~ normal(0, 1);
 
   log_theta ~ normal(5, 10);
@@ -64,5 +69,7 @@ model{
   target += log(sigma_std) - log(sigma_std * std_raw + mu_Std);
 
   for(i in 1:N)
-    meas_Signal[i] ~ normal(Bottom + (Span * 10) * inv_logit((log_x[dil_ID[i]] - log_Inflec) * Slope), sigma_y);
+    meas_Signal[i] ~ normal(Bottom + Span * inv_logit((log_x[dil_ID[i]] - log_Inflec) * Slope), sigma_y);
+
+  zeroes ~ normal(Bottom, sigma_y);
 }
