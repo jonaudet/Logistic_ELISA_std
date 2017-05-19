@@ -94,6 +94,5 @@ model{
 
   target += log(sigma_std) - log(sigma_std * std_raw + mu_Std);
 
-  for(i in 1:N)
-    meas_OD[i] ~ normal(Bottom[pID[dil_ID[i]]] + Span[pID[dil_ID[i]]] * inv_logit((log_x[dil_ID[i]] - log_Inflec[pID[dil_ID[i]]]) * Slope[pID[dil_ID[i]]]), sigma_y);
+  meas_OD ~ normal(Bottom[pID[dil_ID]] + Span[pID[dil_ID]] .* exp(-log1p_exp(-(log_x[dil_ID] - log_Inflec[pID[dil_ID]]) .* Slope[pID[dil_ID]])), sigma_y);
 }

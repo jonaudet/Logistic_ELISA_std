@@ -15,7 +15,7 @@ data{
 
   vector[N_bot] zeroes;
 
-  real inflec_mu;
+  real inflec_mu;//
 }
 transformed data{
   vector[N_grp_dil] log_dilution;
