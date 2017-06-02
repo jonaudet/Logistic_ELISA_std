@@ -15,7 +15,7 @@ data{
 
   vector[N_bot] zeroes;
 
-  real inflec_mu;//
+  real inflec_mu;   //
 }
 transformed data{
   vector[N_grp_dil] log_dilution;
@@ -69,7 +69,7 @@ model{
   target += log(sigma_std) - log(sigma_std * std_raw + mu_Std);
 
   for(i in 1:N)
-    meas_Signal[i] ~ normal(Bottom + Span * inv_logit((log_x[dil_ID[i]] - log_Inflec) * Slope), sigma_y);
+    meas_Signal[i] ~ normal(Bottom + Span * exp(-log1p_exp(-(log_x[dil_ID[i]] - log_Inflec) * Slope)), sigma_y);
 
   zeroes ~ normal(Bottom, sigma_y);
 }
