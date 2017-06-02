@@ -79,13 +79,13 @@ mutate(unkn, Conc = 4500 * Dilution) %>%
 initial <- function(N_dil, N_plates, N_grp){
   inits <- list(std_raw = rnorm(1, 0, 1),
                 sigma_y = abs(rnorm(1, 0, 10)),
-                Bottom = abs(rnorm(N_plates, 4.5, 1)),
-                Span = rnorm(N_plates, 1.6, 0.1),
-                log_Inflec = rnorm(N_plates, 5, 5),
-                Slope = abs(rnorm(N_plates, 1, 0.2)),
+                Bottom = abs(rnorm(N_plates, 5, 1)),
+                Span = rnorm(N_plates, 16, 5),
+                log_Inflec = rnorm(N_plates, 5, 2),
+                Slope = abs(rnorm(N_plates, 1, 0.3)),
                 log_theta = runif(N_grp - 1, -5, 6),
                 sigma_x = rexp(1, 1),
-                sigma_OD = abs(rnorm(1, 0, 0.2)))
+                sigma_y = abs(rnorm(1, 0, 10)))
   return(inits)
 }
 
