@@ -129,34 +129,44 @@ sep <- lapply(1:9, function(i){
   return(res)
 })
 
-logx <- rstan::extract(res, "log_x")$log_x
-df$logx <- 0
-df$logx_low <- 0
-df$logx_top <- 0
-for(i in 1:nrow(df)){
-  df$logx[i] <- median(logx[, df$dID[i]])
-  df$logx_low[i] <- HDI(logx[, df$dID[i]], Interval = 0.97)$LowerHDI
-  df$logx_top[i] <- HDI(logx[, df$dID[i]], Interval = 0.97)$HigherHDI
-}
-ggplot(df, aes(logx, Signal)) +
-  geom_segment(aes(yend = Signal, x = logx_low, xend = logx_top, colour = Std)) +
-  geom_point(aes(colour = Std)) +
-  scale_y_log10() +
-  geom_hline(yintercept = 250.5449, linetype = 3)
-
 log_theta <- array(0, dim = c(10000, 36, 9))
 
 for(i in 1:9) log_theta[, , i] <- rstan::extract(sep[[i]], "log_theta")$log_theta
 
 unkn$MedCalc <- 0
+unkn$Low <- 0
+unkn$Top <- 0
 
 for(i in 1:nrow(unkn))
-  if(unkn$uID[i] < 37)
+  if(unkn$uID[i] < 37){
     #print(paste(unkn$uID[i], unkn$aID[i]))
     unkn$MedCalc[i] <- exp(median(log_theta[, unkn$uID[i], unkn$aID[i]]))
+    unkn$Low[i] <- exp(HDI(log_theta[, unkn$uID[i], unkn$aID[i]])$LowerHDI)
+    unkn$Top[i] <- exp(HDI(log_theta[, unkn$uID[i], unkn$aID[i]])$HigherHDI)
+  }
 
 unkn$Calc_Conc_Mean <- as.numeric(unkn$Calc_Conc_Mean)
 
 filter(unkn, MedCalc != 0) %>%
-ggplot(aes(log(Calc_Conc_Mean), log(MedCalc))) + geom_point(alpha = 0.1) + geom_abline(slope = 1) + xlim(-9, 7) + ylim(-9, 7)
+ggplot(aes(log(Calc_Conc_Mean), log(MedCalc), colour = Assay)) +
+  geom_pointrange(aes(ymin = log(Low), ymax = log(Top)), alpha = 0.1) +
+  geom_abline(slope = 1) +
+  xlim(-9, 7) + ylim(-9, 7)
 
+separate(unkn, Sample, c("Animal", "Day")) %>%
+  mutate(Day = as.numeric(Day)) %>%
+  filter(MedCalc != 0) %>%
+  ggplot(aes(Day, log10(MedCalc), colour = Animal)) +
+  geom_line() +
+  geom_pointrange(aes(ymin = log10(Low), ymax = log10(Top))) +
+  facet_wrap(~Assay) +
+  coord_cartesian(ylim = c(-5, 5))
+
+separate(unkn, Sample, c("Animal", "Day")) %>%
+  mutate(Day = as.numeric(Day)) %>%
+  filter(MedCalc != 0) %>%
+  ggplot(aes(Day, log10(Calc_Conc_Mean), colour = Animal)) +
+  geom_line() +
+  geom_point() +
+  facet_wrap(~Assay) +
+  coord_cartesian(ylim = c(-5, 5))
