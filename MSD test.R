@@ -63,6 +63,7 @@ mutate(unkn, Dilution) %>%
   geom_point(alpha = 0.4) +
   #stat_summary(aes(fun.data = "mean"), geom = "line") +
   scale_x_log10() +
+  scale_y_log10() +
   theme_bw() +
   facet_wrap(~Assay, ncol = 3)
 
