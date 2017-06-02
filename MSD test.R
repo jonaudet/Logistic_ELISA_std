@@ -34,14 +34,14 @@ HDI <- function(Values, Interval = 0.95){
   return(data.frame(LowerHDI = ordered[low], HigherHDI = ordered[low + intSize]))
 }
 
-unkn <- read_excel("D:/Cytokine16May.xlsx", sheet = 2) %>%
+unkn <- read_excel("G:/Cytokine16May.xlsx", sheet = 2) %>%
   mutate(Sample = ifelse(Sample %in% paste("Std", 1:8, sep = ""), "Std", Sample),
          uID = as.numeric(factor(Sample)),
          aID = as.numeric(factor(Assay))) %>%
   arrange(uID, Dilution) %>%
   mutate(Std = Sample == "Std",
          Initial = Dilution * Concentration,
-         Dilution = 1 / Dilution)%>%
+         Dilution = 1 / Dilution) %>%
   group_by(Assay) %>%
   mutate(dID = as.numeric(factor(paste(Sample, Dilution, sep = "_")))) %>%
   ungroup
