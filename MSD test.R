@@ -1,20 +1,41 @@
-if(!require(checkpoint)){
-  install.packages("checkpoint")
-  library(checkpoint)
-}
+library(checkpoint)
 checkpoint("2017-05-13", scanForPackages = F)
-if(!(require(readr) & require(ggplot2) & require(tidyr) & require(plyr) & require(dplyr) & require(rstan) & require(rstudioapi) & require(codetools) & require(readxl))){
-  install.packages(c("rstan", "ggplot2", "tidyr", "dplyr", "plyr", "readr", "rstudioapi", "codetools", "readxl"))
-
-  library(rstan)
-  library(readr)
-  library(ggplot2)
-  library(plyr)
-  library(tidyr)
+setSnapshot("2017-05-13")
+if(!require(stringr)){
+  install.packages("stringr")
+  library(stringr)
+}
+if(!require(dplyr)){
+  install.packages("dplyr")
   library(dplyr)
-  library(rstudioapi)
-  library(codetools)
+}
+if(!require(readxl)){
+  install.packages("readxl")
   library(readxl)
+}
+if(!require(tidyr)){
+  install.packages("tidyr")
+  library(tidyr)
+}
+if(!require(ggplot2)){
+  install.packages("ggplot2")
+  library(ggplot2)
+}
+if(!require(rstan)){
+  install.packages("rstan")
+  library(rstan)
+}
+if(!require(rstudioapi)){
+  install.packages("rstudioapi")
+  library(rstudioapi)
+}
+if(!require(codetools)){
+  install.packages("codetools")
+  library(codetools)
+}
+if(!require(bayesplot)){
+  install.packages("bayesplot")
+  library(bayesplot)
 }
 rstan_options(auto_write = TRUE)
 options(mc.cores = parallel::detectCores())
@@ -34,32 +55,49 @@ HDI <- function(Values, Interval = 0.95){
   return(data.frame(LowerHDI = ordered[low], HigherHDI = ordered[low + intSize]))
 }
 
-unkn <- read_excel("G:/Cytokine16May.xlsx", sheet = 2) %>%
-  mutate(Sample = ifelse(Sample %in% paste("Std", 1:8, sep = ""), "Std", Sample),
+unkn <- read_excel("E:/Cytokine/12Jun2017.xlsx", sheet = 2, skip = 1) %>%
+  mutate(Sample = ifelse(str_detect(Sample, "S0"), "Std", Sample),
          uID = as.numeric(factor(Sample)),
          aID = as.numeric(factor(Assay))) %>%
   arrange(uID, Dilution) %>%
   mutate(Std = Sample == "Std",
-         Initial = Dilution * Concentration,
          Dilution = 1 / Dilution) %>%
   group_by(Assay) %>%
-  mutate(dID = as.numeric(factor(paste(Sample, Dilution, sep = "_")))) %>%
+  mutate(dID = as.numeric(factor(paste(Plate_Name, Sample, Dilution, sep = "_")))) %>%
+  ungroup
+
+unkn <- read_excel("E:/Cytokine/13Jun2017.xlsx", sheet = 2, skip = 1) %>%
+  mutate(Sample = ifelse(str_detect(Sample, "S0"), "Std", Sample),
+         uID = as.numeric(factor(Sample)),
+         aID = as.numeric(factor(Assay))) %>%
+  arrange(uID, Dilution) %>%
+  mutate(Std = Sample == "Std",
+         Dilution = 1 / Dilution) %>%
+  group_by(Assay) %>%
+  mutate(dID = as.numeric(factor(paste(Plate_Name, Sample, Dilution, sep = "_")))) %>%
+  ungroup %>%
+  bind_rows(unkn) %>%
+  mutate(pID = as.numeric(factor(Plate_Name)))
+
+unkn <- unkn %>%
+  group_by(pID, aID) %>%
+  mutate(Dilution = ifelse(is.na(Dilution), max(Concentration, na.rm = T) / Concentration, Dilution)) %>%
   ungroup
 
 ser_dilutions <- unkn %>%
   group_by(Assay) %>%
-  mutate(dID = as.numeric(factor(paste(Sample, Dilution, sep = "_")))) %>%
+  mutate(dID = as.numeric(factor(paste(Plate_Name, Sample, Dilution, sep = "_")))) %>%
   distinct(dID, Dilution) %>%
   arrange(dID) %>%
   .$Dilution
 
 unkn <- group_by(unkn, Assay) %>%
-  mutate(dID = as.numeric(factor(paste(Sample, Dilution, sep = "_")))) %>%
+  mutate(dID = as.numeric(factor(paste(Plate_Name, Sample, Dilution, sep = "_")))) %>%
   ungroup
 
 # Plot of each plate's standard and corresponding unknowns
 mutate(unkn, Dilution) %>%
-  ggplot(aes(x = Concentration, y = Signal, colour = Std, group = uID)) +
+  ggplot(aes(x = Concentration, y = Signal, colour = Plate_Name, group = uID)) +
   geom_point(alpha = 0.4) +
   #stat_summary(aes(fun.data = "mean"), geom = "line") +
   scale_x_log10() +
@@ -67,22 +105,17 @@ mutate(unkn, Dilution) %>%
   theme_bw() +
   facet_wrap(~Assay, ncol = 3)
 
-mutate(unkn, Conc = 4500 * Dilution) %>%
-  filter(Std == TRUE) %>%
-  ggplot(aes(x = Conc, y = Signal, colour = Assay)) +
-  geom_point(alpha = 0.4) +
-  stat_summary(aes(fun.data = "mean"), geom = "line") +
-  scale_x_log10() +
-  theme_bw()
-
 
 initial <- function(N_dil, N_plates, N_grp){
   inits <- list(std_raw = rnorm(1, 0, 1),
-                sigma_y = abs(rnorm(1, 0, 10)),
-                Bottom = abs(rnorm(N_plates, 5, 1)),
-                Span = rnorm(N_plates, 16, 5),
-                log_Inflec = rnorm(N_plates, 5, 2),
-                Slope = abs(rnorm(N_plates, 1, 0.3)),
+                mu_Bottom = abs(rnorm(1, 5, 1)),
+                mu_Span = rnorm(1, 16, 5),
+                mu_log_Inflec = rnorm(1, 5, 2),
+                mu_log_Slope = abs(rnorm(1, 0, 0.15)),
+                sigma_Bottom = abs(rnorm(1, 0, 1)),
+                sigma_Span = abs(rnorm(1, 0, 1)),
+                sigma_log_Inflec = abs(rnorm(1, 0, 1)),
+                sigma_log_Slope = abs(rnorm(1, 0, 0.3)),
                 log_theta = runif(N_grp - 1, -5, 6),
                 sigma_x = rexp(1, 1),
                 sigma_y = abs(rnorm(1, 0, 10)))
@@ -91,37 +124,41 @@ initial <- function(N_dil, N_plates, N_grp){
 
 # Run the model
 
-mod <- stan_model("logistic_MSD_4p_1plate.stan")
+mod <- stan_model("logistic_MSD_4p_Jplate.stan")
 
 sep <- lapply(1:9, function(i){
   print(i)
-  df <- filter(unkn, aID == i, !is.na(Dilution)) %>%
+  df <- filter(unkn, aID == i, !is.na(Dilution), Dilution != Inf) %>%
     mutate(uID = as.numeric(factor(Sample)),
-           dID = as.numeric(factor(paste(Sample, format(Dilution, scientific = F), sep = "_")))) %>%
+           dID = as.numeric(factor(paste(Plate_Name, Sample, format(Dilution, scientific = F), sep = "_")))) %>%
     arrange(dID, uID, Dilution)
-  inits <- lapply(1:4, function(x) initial(max(df$dID), 1, max(df$uID)))
+  inits <- lapply(1:4, function(x) initial(max(df$dID), 4, max(df$uID)))
   ser_dilutions <- df %>%
-    mutate(dID = as.numeric(factor(paste(Sample, format(Dilution, scientific = F), sep = "_")))) %>%
+    mutate(dID = as.numeric(factor(paste(Plate_Name, Sample, format(Dilution, scientific = F), sep = "_")))) %>%
     distinct(dID, Dilution) %>%
     arrange(dID) %>%
     .$Dilution
   s_df <- df %>%
-    distinct(dID, uID)
-  mu_std <- median(df$Initial, na.rm = T)
-  zeroes <- filter(unkn, aID == i, is.na(Dilution)) %>% .$Signal
+    distinct(dID, uID, .keep_all = T)
+  mu_std <- median(df$Concentration, na.rm = T)
+  zeroes <- filter(unkn, aID == i, Dilution == Inf) %>% .$Signal
+  plate_zeroes <- filter(unkn, aID == i, Dilution == Inf) %>% .$pID
   inflec_mu <- mean(df$Concentration, na.rm = T)
   res <- sampling(mod,
                   data = list(N = nrow(df),
+                              J = max(df$pID),
                               N_grp = max(s_df$uID),
                               N_grp_dil = max(df$dID),
                               N_bot = length(zeroes),
                               dil_ID = df$dID,
                               uID = s_df$uID,
+                              pID = s_df$pID,
                               meas_Signal = log(df$Signal),
                               dilution = ser_dilutions,
                               mu_Std = mu_std,
                               sigma_std = 0.01 * mu_std,
                               zeroes = log(zeroes),
+                              plate_zeroes = plate_zeroes,
                               inflec_mu = log(inflec_mu)),
                   init = inits, chains = 4, sample_file = "dia",
                   iter = 3000, warmup = 500, refresh = 50, control = list(adapt_delta = 0.99, max_treedepth = 17))
