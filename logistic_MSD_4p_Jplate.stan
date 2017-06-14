@@ -77,9 +77,9 @@ model{
 
   sigma_y ~ normal(0, 1);
   sigma_x ~ normal(0, 1);
-  mu_Span ~ normal(16, 5);
+  mu_Span ~ normal(10, 2);
   mu_Bottom ~ normal(5, 1);
-  mu_log_Inflec ~ normal(inflec_mu, 1);
+  mu_log_Inflec ~ normal(inflec_mu, 2);
   mu_log_Slope ~ normal(0, 0.12);
 
   sigma_Bottom ~ normal(0, 1);
