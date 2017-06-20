@@ -8,6 +8,7 @@ data{
   int<lower = 1, upper = N_grp> uID[N_grp_dil]; //Sample ID for each dilution
   int<lower = 1, upper = J> pID[N_grp_dil];     //Plate ID for each dilution
   int<lower = 1, upper = N_grp_dil> dil_ID[N];  //Dilution ID for each well
+  vector<lower = 1>[N_grp_dil] Dil_order;
 
   vector[N] meas_OD;    //Optical density measured for each well
   vector[N_grp_dil] dilution;  //Dilution factor for each dilution
@@ -32,7 +33,7 @@ transformed data{
 }
 parameters{
   real<lower = 0> sigma_y;
-  real<lower = 0> sigma_x;
+  //real<lower = 0> sigma_x;
 
 
   real mu_Bottom;
@@ -76,7 +77,7 @@ model{
   Slope = exp(mu_log_Slope + sigma_log_Slope * raw_log_Slope);
 
   sigma_y ~ normal(0, 1);
-  sigma_x ~ normal(0, 1);
+  //sigma_x ~ normal(0, 1);
   mu_Span ~ normal(10, 2);
   mu_Bottom ~ normal(5, 1);
   mu_log_Inflec ~ normal(inflec_mu, 2);
@@ -96,7 +97,7 @@ model{
 
   log_theta ~ normal(5, 10);
 
-  log_conc ~ normal(log_x, sigma_x);
+  log_conc ~ normal(log_x, 0.05 + 0.01 * Dil_order);
 
   target += log(sigma_std) - log(sigma_std * std_raw + mu_Std);
 
