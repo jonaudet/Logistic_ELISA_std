@@ -20,6 +20,9 @@ data{
   int plate_zeroes[N_bot];
 
   real inflec_mu;
+  
+  int N_mix;
+  vector[N_mix] means;
 }
 transformed data{
   vector[N_grp_dil] log_dilution;
@@ -95,7 +98,16 @@ model{
 
   std_raw ~ normal(0, 1);
 
-  log_theta ~ normal(5, 10);
+  //log_theta prior, flat-ish over -4 to 11
+  
+  for(j in 1:(N_grp - 1)){
+    vector[N_mix] probs;
+    for(i in 1:N_mix){
+      probs[i] = log(1.0 / N_mix) + normal_lpdf(log_theta[j] | means[i], 1);
+    }
+    
+    target += log_sum_exp(probs);
+  }
 
   log_conc ~ normal(log_x, 0.05 + 0.01 * Dil_order);
 
